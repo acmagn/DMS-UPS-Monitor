@@ -1,0 +1,15 @@
+{
+    "id": "dankUpsMonitor",
+    "name": "Dank UPS Monitor",
+    "description": "NUT-powered UPS status for the DankBar with optional alerts and charge history",
+    "version": "1.1.2",
+    "license": "MIT",
+    "author": "acmagn",
+    "icon": "electrical_services",
+    "component": "./DankUpsMonitor.qml",
+    "settings": "./DankUpsMonitorSettings.qml",
+    "permissions": [
+        "settings_read",
+        "settings_write"
+    ]
+}
