@@ -14,31 +14,13 @@ A [DankMaterialShell](https://github.com/AvengeMedia/DankMaterialShell) DankBar 
 
 This plugin **does not replace [upsmon](https://networkupstools.org/docs/man/upsmon.html)**. Keep **upsmon** for shutdown and system-level handling; use this plugin for the shell UI and optional user-session notifications.
 
-## Debugging (“NUT?” or errors in the bar)
+## Debugging
 
-The bar only showed **NUT?** in older builds; current versions show **`upsc`’s real message** (truncated) and the **popout** lists **Command**, **Exit code**, and **Message**.
+**“upsc not found”** — DankMaterialShell often runs with a **minimal PATH**. Set **upsc path** in settings to the full binary (e.g. `/usr/bin/upsc`). Find it with `command -v upsc` or `pacman -Ql nut | grep upsc` (Arch).
 
-1. **Run the same command in a terminal** (use your configured UPS name and optional path):
+**Connection / driver errors** — Ensure **`upsd`** is running and your user may talk to it (`upsd.users`, group `nut` / `nutups`, etc.). Check `systemctl status nut-server` (names vary by distro).
 
-   ```bash
-   upsc ups@localhost
-   # or
-   /usr/bin/upsc ups@localhost
-   ```
-
-2. **List UPS names NUT knows**:
-
-   ```bash
-   upsc -l
-   ```
-
-   If your device is not `ups@localhost`, set **UPS device** in plugin settings to match (e.g. `myups@127.0.0.1`).
-
-3. **“upsc not found”** — DankMaterialShell often runs with a **minimal PATH**. Set **upsc path** in settings to the full binary (e.g. `/usr/bin/upsc`). Find it with `command -v upsc` or `pacman -Ql nut | grep upsc` (Arch).
-
-4. **Connection / driver errors** — Ensure **`upsd`** is running and your user may talk to it (`upsd.users`, group `nut` / `nutups`, etc.). Check `systemctl status nut-server` (names vary by distro).
-
-5. **Logs** — Failed runs log to the **DankMaterialShell / Quickshell console** with exit code, command, and full output (`console.warn` lines mentioning `DankUpsMonitor`).
+**Logs** — Failed runs log to the **DankMaterialShell / Quickshell console** with exit code, command, and full output (`console.warn` lines mentioning `DankUpsMonitor`).
 
 ## Requirements
 
@@ -48,13 +30,11 @@ The bar only showed **NUT?** in older builds; current versions show **`upsc`’s
 
 ## Installation
 
+Ideally, install from DMS Plugin Management. Otherwise:
+
 1. Create a folder in your DankMaterialShell plugins directory (name it however you like, e.g. `DankUpsMonitor`).
-2. Copy **`plugin.json`**, **`DankUpsMonitor.qml`**, and **`DankUpsMonitorSettings.qml`** from this repo into that folder (three files in **one** directory, no nested `DankUpsMonitor/` subfolder).
+2. Copy **`plugin.json`**, **`DankUpsMonitor.qml`**, and **`DankUpsMonitorSettings.qml`** from this repo into that folder.
 3. Enable **Dank UPS Monitor** in DankMaterialShell and add the widget to the DankBar.
-
-Same layout as other plugins: one folder per plugin, all QML and `plugin.json` at the same level ([dms-plugins](https://github.com/AvengeMedia/dms-plugins) uses one folder per plugin inside their monorepo; here the repo **is** that single plugin folder).
-
-If the bar shows **`NUT?`**, `upsc` failed (wrong device name, `upsd` not running, or missing permissions).
 
 ### UPS device name
 
@@ -75,39 +55,10 @@ Inspect one:
 upsc ups@localhost
 ```
 
-## upsmon and NOTIFYCMD
-
-**upsmon** watches the same UPS state for **shutdown** and **notify** events. This plugin **polls independently** for the UI; you can still route **upsmon** events to scripts.
-
-Example: in `upsmon.conf`, set a notification command (paths and options depend on your distro):
-
-```conf
-NOTIFYCMD /usr/local/bin/nut-notify
-```
-
-Example script `/usr/local/bin/nut-notify`:
-
-```bash
-#!/bin/sh
-# upsmon passes NOTIFYTYPE etc. in the environment — see upsmon(8).
-/usr/bin/notify-send -a NUT "UPS $NOTIFYTYPE" "UPS event — check power"
-```
-
-Use this for **email**, **logging**, or **extra** alerts. The DankBar plugin’s own notifications are separate and only need `notify-send` in your **user** session.
-
-## Permissions
-
-- **Session user** only needs to run `upsc` (and `notify-send` for alerts). If `upsd` restricts clients, add your user to the right group or adjust `upsd.users` / ACLs so `upsc` works **non-root**.
-- **upsmon** often runs as root or a dedicated user — that is independent of this plugin.
-
 ### Latency vs chart
 
-- **UPS poll interval** (and, when enabled, **battery poll interval**) sets how soon the **bar** and **notifications** can see a change. Worst case ≈ **one poll** after the UPS changes (plus process time).
+- **UPS poll interval** (and, when enabled, **battery poll interval**) sets how soon the **bar** and **notifications** can see a change.
 - **Chart sample interval**, **history retention**, and **max chart points** only affect the **popout graph** (how often a point is stored and how many are kept). They do **not** slow down bar updates or alerts.
-
-### Does NUT support subscriptions?
-
-Not for this plugin. The usual client is **`upsc`**, which is **request/response** — there is no supported push stream for “notify me when `ups.status` changes” from a random user session. **upsmon** gets events because it is the designated monitor and talks to `upsd` in that role. For extra responsiveness you can lower poll intervals, use **adaptive battery polling** (built into this plugin), or run **NOTIFYCMD** / scripts from **upsmon** in parallel.
 
 ## Configuration reference
 
@@ -125,8 +76,6 @@ Not for this plugin. The usual client is **`upsc`**, which is **request/response
 | Notifications | Toggles for power loss, low battery, mains restore |
 | Show runtime in bar | On **battery** only, shows `battery.runtime` next to charge |
 | Bar on mains | Dropdown: battery %, load, real power, input/output V, or status (utility power only) |
-
-**Notifications:** Power, low-battery, and mains state live in **plugin state** (`pluginService.savePluginState`) so every widget instance shares one logical state. Identical title and body within **15 seconds** is deduped. Low-battery is skipped in the same poll as power-loss. If you still get pairs of similar alerts, check **upsmon** `NOTIFYCMD` scripts that also call `notify-send`.
 
 ## License
 
