@@ -15,7 +15,7 @@ PluginSettings {
     }
 
     StyledText {
-        text: "Reads NUT variables via upsc and shows status on the DankBar. Pair with upsmon for shutdown and NOTIFYCMD for extra scripts."
+        text: "NUT via upsc on the DankBar. Use upsmon for shutdown and NOTIFYCMD for extra scripts."
         font.pixelSize: Theme.fontSizeSmall
         color: Theme.surfaceVariantText
         width: parent.width
@@ -38,7 +38,7 @@ PluginSettings {
     StringSetting {
         settingKey: "upsDevice"
         label: "UPS device"
-        description: "NUT ups name (e.g. ups@localhost or myups@192.168.1.10). Run: upsc -l"
+        description: "Argument to upsc. List with upsc -l."
         placeholder: "ups@localhost"
         defaultValue: "ups@localhost"
     }
@@ -46,26 +46,68 @@ PluginSettings {
     StringSetting {
         settingKey: "upscPath"
         label: "upsc path (optional)"
-        description: "If the bar shows “upsc not found”, set the full path (e.g. /usr/bin/upsc). Leave empty to use PATH inside sh."
+        description: "Full path if upsc is not on PATH for the shell."
         placeholder: "/usr/bin/upsc"
         defaultValue: ""
     }
 
     SliderSetting {
         settingKey: "pollIntervalSec"
-        label: "Poll interval"
-        description: "How often to run upsc. Longer intervals mean less CPU and fewer samples per day (see history caps below)."
-        defaultValue: 60
+        label: "UPS poll (mains)"
+        description: "upsc interval on utility power. Bar and alerts follow this. Max 120 s."
+        defaultValue: 10
         minimum: 5
-        maximum: 3600
+        maximum: 120
         unit: "s"
         rightIcon: "schedule"
     }
 
+    ToggleSetting {
+        settingKey: "adaptiveBatteryPoll"
+        label: "Faster poll on battery"
+        description: "On battery, use the smaller of mains poll and battery poll."
+        defaultValue: true
+    }
+
+    SliderSetting {
+        settingKey: "batteryPollIntervalSec"
+        label: "Battery poll"
+        description: "Lower bound when adaptive is on and OB."
+        defaultValue: 5
+        minimum: 2
+        maximum: 120
+        unit: "s"
+        rightIcon: "bolt"
+    }
+
+    StyledRect {
+        width: parent.width
+        height: 1
+        color: Theme.surfaceVariant
+    }
+
+    StyledText {
+        text: "Chart"
+        font.pixelSize: Theme.fontSizeMedium
+        font.weight: Font.DemiBold
+        color: Theme.surfaceText
+    }
+
+    SliderSetting {
+        settingKey: "historyRecordIntervalSec"
+        label: "Chart sample interval"
+        description: "Minimum seconds between charge points on the graph."
+        defaultValue: 30
+        minimum: 5
+        maximum: 3600
+        unit: "s"
+        rightIcon: "analytics"
+    }
+
     SliderSetting {
         settingKey: "historyRetentionHours"
-        label: "History retention"
-        description: "Drop charge samples older than this window. In-memory only (not saved to disk)."
+        label: "Chart retention"
+        description: "Drop points older than this. In memory only."
         defaultValue: 24
         minimum: 1
         maximum: 168
@@ -75,8 +117,8 @@ PluginSettings {
 
     SliderSetting {
         settingKey: "historyMaxPoints"
-        label: "Max history samples"
-        description: "Hard cap on points kept after time pruning. Example: 24h at 60s poll ≈ 1440 points."
+        label: "Max chart points"
+        description: "Hard cap after time pruning."
         defaultValue: 1440
         minimum: 50
         maximum: 5000
@@ -99,10 +141,10 @@ PluginSettings {
     SliderSetting {
         settingKey: "warnChargeThreshold"
         label: "Low charge warning"
-        description: "Treat as low battery for desktop notifications (and LB flag from UPS always counts)"
+        description: "Notify on battery when charge is at or below this, or UPS sends LB. Full 0 to 100% for demos."
         defaultValue: 30
-        minimum: 5
-        maximum: 90
+        minimum: 0
+        maximum: 100
         unit: "%"
         rightIcon: "battery_3_bar"
     }
@@ -110,10 +152,10 @@ PluginSettings {
     SliderSetting {
         settingKey: "criticalChargeThreshold"
         label: "Critical charge"
-        description: "Stronger bar styling when on battery and charge is at or below this level"
+        description: "Stronger bar styling on battery at or below this. Full 0 to 100% for demos."
         defaultValue: 15
-        minimum: 1
-        maximum: 50
+        minimum: 0
+        maximum: 100
         unit: "%"
         rightIcon: "battery_alert"
     }
@@ -134,21 +176,21 @@ PluginSettings {
     ToggleSetting {
         settingKey: "notifyOnPowerLoss"
         label: "Notify on power loss"
-        description: "When ups.status switches from utility to battery"
+        description: "When status goes from utility to battery."
         defaultValue: true
     }
 
     ToggleSetting {
         settingKey: "notifyLowBattery"
         label: "Notify on low battery"
-        description: "Once per outage when LB or charge falls below thresholds"
+        description: "Once per outage for LB or low charge."
         defaultValue: true
     }
 
     ToggleSetting {
         settingKey: "notifyOnMainsRestore"
         label: "Notify on mains restore"
-        description: "When utility power returns"
+        description: "When utility returns after battery."
         defaultValue: false
     }
 
@@ -165,16 +207,43 @@ PluginSettings {
         color: Theme.surfaceText
     }
 
+    SelectionSetting {
+        settingKey: "mainsBarStatistic"
+        label: "Bar on mains"
+        description: "Primary value while on utility power (not on battery)."
+        options: [
+            {
+                label: "Battery %",
+                value: "battery"
+            },
+            {
+                label: "Load %",
+                value: "load"
+            },
+            {
+                label: "Power (W)",
+                value: "realpower"
+            },
+            {
+                label: "Input V",
+                value: "inputV"
+            },
+            {
+                label: "Output V",
+                value: "outputV"
+            },
+            {
+                label: "Status",
+                value: "status"
+            }
+        ]
+        defaultValue: "battery"
+    }
+
     ToggleSetting {
         settingKey: "showRuntimeInBar"
         label: "Show runtime in bar"
-        description: "When on battery, show remaining runtime (battery.runtime) next to charge"
+        description: "On battery, append battery.runtime next to charge."
         defaultValue: true
-    }
-
-    StyledRect {
-        width: parent.width
-        height: 1
-        color: Theme.surfaceVariant
     }
 }
