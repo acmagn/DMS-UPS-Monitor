@@ -22,6 +22,9 @@ PluginComponent {
     property bool showRuntimeInBar: pluginData.showRuntimeInBar ?? true
     property string mainsBarStatistic: pluginData.mainsBarStatistic || "battery"
     property int historyMaxPoints: Math.max(50, Math.min(5000, pluginData.historyMaxPoints ?? 1440))
+    property string criticalColorHex: (pluginData.criticalColorHex !== undefined && pluginData.criticalColorHex !== null)
+        ? String(pluginData.criticalColorHex).trim()
+        : ""
 
     property bool upscOk: false
     property string upscError: ""
@@ -62,21 +65,72 @@ PluginComponent {
         return "notify_" + k;
     }
 
-    function notifyStateGet(key, defVal) {
+    function stateGet(key, defVal) {
         if (root.pluginService)
-            return root.pluginService.loadPluginState("dankUpsMonitor", root.notifyStateKey(key), defVal);
+            return root.pluginService.loadPluginState("dankUpsMonitor", key, defVal);
         const o = root._notifyStateLocal;
         return o[key] !== undefined ? o[key] : defVal;
     }
 
-    function notifyStateSet(key, value) {
+    function stateSet(key, value) {
         if (root.pluginService) {
-            root.pluginService.savePluginState("dankUpsMonitor", root.notifyStateKey(key), value);
+            root.pluginService.savePluginState("dankUpsMonitor", key, value);
             return;
         }
         const o = Object.assign({}, root._notifyStateLocal);
         o[key] = value;
         root._notifyStateLocal = o;
+    }
+
+    function notifyStateGet(key, defVal) {
+        return root.stateGet(root.notifyStateKey(key), defVal);
+    }
+
+    function notifyStateSet(key, value) {
+        root.stateSet(root.notifyStateKey(key), value);
+    }
+
+    function chargeHistoryStorageKey() {
+        return "chargeHistory_v1__" + root.upsDevice.replace(/[^a-zA-Z0-9_.@-]/g, "_");
+    }
+
+    function loadPersistedChargeHistory() {
+        const raw = root.stateGet(root.chargeHistoryStorageKey(), null);
+        if (raw === null || raw === undefined)
+            return;
+        let arr;
+        try {
+            if (typeof raw === "string")
+                arr = JSON.parse(raw);
+            else if (Array.isArray(raw))
+                arr = raw;
+            else
+                return;
+        } catch (e) {
+            console.warn("DankUpsMonitor: invalid charge history state, ignoring");
+            return;
+        }
+        if (!Array.isArray(arr))
+            return;
+        const now = Date.now();
+        const retentionMs = root.historyRetentionHours * 3600 * 1000;
+        const cutoff = now - retentionMs;
+        const max = root.historyMaxPoints;
+        let h = arr.filter(p => p && typeof p.t === "number" && typeof p.c === "number" && p.t >= cutoff);
+        h.sort((a, b) => a.t - b.t);
+        if (h.length > max)
+            h = h.slice(h.length - max);
+        root.chargeHistory = h;
+        if (h.length > 0)
+            root._lastHistoryRecordMs = h[h.length - 1].t;
+    }
+
+    function persistChargeHistory(h) {
+        try {
+            root.stateSet(root.chargeHistoryStorageKey(), JSON.stringify(h));
+        } catch (e) {
+            console.warn("DankUpsMonitor: persist charge history failed:", e);
+        }
     }
 
     readonly property bool flagOL: root.statusHas("OL")
@@ -97,10 +151,17 @@ PluginComponent {
     }
     readonly property bool lowBatteryFlag: root.flagLB
 
-    readonly property bool chargeCritical: root.batteryCharge >= 0 && root.batteryCharge <= root.criticalChargeThreshold
+    readonly property bool chargeCritical: root.onBattery && root.batteryCharge >= 0 && root.batteryCharge <= root.criticalChargeThreshold
 
     readonly property bool emergency: root.upscOk && root.onBattery
-    readonly property bool criticalAttention: root.upscOk && (root.lowBatteryFlag || root.chargeCritical)
+    readonly property bool criticalAttention: root.upscOk && root.onBattery && (root.lowBatteryFlag || root.chargeCritical)
+
+    readonly property color criticalAttentionColor: {
+        const h = root.criticalColorHex;
+        if (h.length >= 4 && h[0] === "#")
+            return Qt.color(h);
+        return Qt.rgba(0.83, 0.09, 0.09, 1);
+    }
 
     readonly property string barLabel: {
         if (!root.upscOk)
@@ -122,7 +183,7 @@ PluginComponent {
         if (!root.upscOk)
             return Theme.surfaceVariantText;
         if (root.criticalAttention)
-            return Theme.error;
+            return root.criticalAttentionColor;
         if (root.onBattery)
             return Theme.warning;
         return Theme.primary;
@@ -132,7 +193,7 @@ PluginComponent {
         if (!root.upscOk)
             return Theme.surfaceVariantText;
         if (root.criticalAttention)
-            return Theme.error;
+            return root.criticalAttentionColor;
         if (root.onBattery)
             return Theme.warning;
         return Theme.surfaceVariantText;
@@ -334,6 +395,7 @@ PluginComponent {
         if (h.length > max)
             h = h.slice(h.length - max);
         root.chargeHistory = h;
+        root.persistChargeHistory(h);
     }
 
     function notify(title, message, urgency, iconName) {
@@ -397,7 +459,10 @@ PluginComponent {
     }
 
     Component.onCompleted: {
-        Qt.callLater(runUpsc);
+        Qt.callLater(() => {
+            root.loadPersistedChargeHistory();
+            root.runUpsc();
+        });
     }
 
     Timer {
@@ -492,9 +557,11 @@ PluginComponent {
             Rectangle {
                 anchors.fill: parent
                 radius: Theme.cornerRadius
-                color: root.emergency ? Qt.rgba(Theme.warning.r, Theme.warning.g, Theme.warning.b, 0.2) : "transparent"
+                color: root.criticalAttention
+                    ? Qt.rgba(root.criticalAttentionColor.r, root.criticalAttentionColor.g, root.criticalAttentionColor.b, 0.22)
+                    : (root.emergency ? Qt.rgba(Theme.warning.r, Theme.warning.g, Theme.warning.b, 0.2) : "transparent")
                 border.width: root.criticalAttention ? 2 : (root.emergency ? 1 : 0)
-                border.color: root.criticalAttention ? Theme.error : Theme.warning
+                border.color: root.criticalAttention ? root.criticalAttentionColor : Theme.warning
                 visible: root.emergency || root.criticalAttention
             }
 
@@ -532,9 +599,11 @@ PluginComponent {
             Rectangle {
                 anchors.fill: parent
                 radius: Theme.cornerRadius
-                color: root.emergency ? Qt.rgba(Theme.warning.r, Theme.warning.g, Theme.warning.b, 0.2) : "transparent"
+                color: root.criticalAttention
+                    ? Qt.rgba(root.criticalAttentionColor.r, root.criticalAttentionColor.g, root.criticalAttentionColor.b, 0.22)
+                    : (root.emergency ? Qt.rgba(Theme.warning.r, Theme.warning.g, Theme.warning.b, 0.2) : "transparent")
                 border.width: root.criticalAttention ? 2 : (root.emergency ? 1 : 0)
-                border.color: root.criticalAttention ? Theme.error : Theme.warning
+                border.color: root.criticalAttention ? root.criticalAttentionColor : Theme.warning
                 visible: root.emergency || root.criticalAttention
             }
 

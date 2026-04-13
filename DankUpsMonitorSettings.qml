@@ -107,7 +107,7 @@ PluginSettings {
     SliderSetting {
         settingKey: "historyRetentionHours"
         label: "Chart retention"
-        description: "Drop points older than this. In memory only."
+        description: "Drop points older than this."
         defaultValue: 24
         minimum: 1
         maximum: 168
@@ -141,7 +141,7 @@ PluginSettings {
     SliderSetting {
         settingKey: "warnChargeThreshold"
         label: "Low charge warning"
-        description: "Notify on battery when charge is at or below this, or UPS sends LB. Full 0 to 100% for demos."
+        description: "Notify on battery when charge is at or below this, or UPS sends LB."
         defaultValue: 30
         minimum: 0
         maximum: 100
@@ -152,7 +152,7 @@ PluginSettings {
     SliderSetting {
         settingKey: "criticalChargeThreshold"
         label: "Critical charge"
-        description: "Stronger bar styling on battery at or below this. Full 0 to 100% for demos."
+        description: "Stronger bar styling while on battery and charge is at or below this."
         defaultValue: 15
         minimum: 0
         maximum: 100
@@ -238,6 +238,14 @@ PluginSettings {
             }
         ]
         defaultValue: "battery"
+    }
+
+    StringSetting {
+        settingKey: "criticalColorHex"
+        label: "Critical alert color"
+        description: "Optional #RRGGBB (e.g. #D32F2F). Leave empty for the built-in alert red."
+        placeholder: "#D32F2F"
+        defaultValue: ""
     }
 
     ToggleSetting {

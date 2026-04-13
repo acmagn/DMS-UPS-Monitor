@@ -3,6 +3,11 @@
 A [DankMaterialShell](https://github.com/AvengeMedia/DankMaterialShell) DankBar plugin that shows **real-time UPS status** using [Network UPS Tools (NUT)](https://networkupstools.org/). It polls `upsc`, highlights **on-battery** operation in the bar, optionally sends **desktop notifications** (via `notify-send`), and includes a **simple charge history** graph in the popout.
 
 
+<img width="528" height="553" alt="image" src="https://github.com/user-attachments/assets/06f0f507-67b4-452a-b4f8-ad37ac80a795" />
+
+![status-change](https://github.com/user-attachments/assets/769ebf81-615f-4127-bf58-7634304bb959)
+
+
 ## Features
 
 - **Tight NUT integration**: runs `upsc <device>` on a configurable interval; optional **faster polling while on battery** so power-loss is noticed quickly without spamming `upsd` on mains.
